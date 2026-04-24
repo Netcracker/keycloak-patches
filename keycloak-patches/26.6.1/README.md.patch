@@ -1,0 +1,25 @@
+diff --git a/README.md b/README.md
+index c9856046d4..1fa189492d 100644
+--- a/README.md
++++ b/README.md
+@@ -43,7 +43,7 @@ To run Keycloak, download the distribution from our [website](https://www.keyclo
+ Alternatively, you can use the Docker image by running:
+ 
+     docker run quay.io/keycloak/keycloak start-dev
+-    
++
+ For more details refer to the [Keycloak Documentation](https://www.keycloak.org/documentation.html).
+ 
+ 
+@@ -78,3 +78,11 @@ Joining a [community meeting](https://www.keycloak.org/community) is a great way
+ ## License
+ 
+ * [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
++
++> !NOTE
++> This is a **patched build** of Keycloak maintained by [netcracker/keycloak-patches](https://github.com/netcracker/keycloak-patches).
++> Docker image: ghcr.io/netcracker/keycloak-patches:v26.6.1-patched
++> For applied patches see [releases](https://github.com/netcracker/keycloak-patches/releases).
++> Upstream source: [keycloak/keycloak](https://github.com/keycloak/keycloak).
++> Patch issues: [netcracker/keycloak-patches](https://github.com/netcracker/keycloak-patches/issues).
++> Upstream issues: [keycloak/keycloak](https://github.com/keycloak/keycloak/issues).
