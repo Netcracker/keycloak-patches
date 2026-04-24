@@ -1,6 +1,6 @@
 ---
 name: Build .tgz + image for Keycloak
-run-name: "Image for ${{ github.event.repository.name }}: ${{ github.run_number }} - ${{ github.actor }}"
+run-name: "Image for patched Keycloak ${{ inputs.keycloak-tag }}. Patched release tag ${{ inputs.tag }}"
 
 on:
   workflow_dispatch:
