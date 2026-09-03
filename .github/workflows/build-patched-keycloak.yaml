@@ -80,8 +80,6 @@ jobs:
         with:
           maven-version: 3.9.8
       
-      - name: 
-
       - name: build
         uses: ./.github/actions/build-keycloak
         with:
