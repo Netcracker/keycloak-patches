@@ -10,7 +10,7 @@ on:
         required: true
         default: "26.3.2"
       image-tag-postfix:
-        description: "Postfix to add to image tag"
+        description: "Postfix to add to image tag. For default branch resulting tag will be <keykloak version>-<image-tag-postfix>. For others <keykloak version>-<barnch name>-<image-tag-postfix> "
         required: false
         default: ""
       create-release:
@@ -19,7 +19,7 @@ on:
         required: false
         type: boolean
       tag:
-        description: "GitHub tag name to create if `create-release == true`"
+        description: "GitHub tag name to create if create-release==true"
         default: "26.3.2-patched"
         required: false
       force-create:
@@ -103,15 +103,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker image preparation
+        env:
+          INPUTS_IMAGE_TAG_POSTFIX: ${{ inputs.image-tag-postfix }}
         run: |
           version=$(ls quarkus/dist/target/keycloak-*.tar.gz | cut -d'/' -f4 | sed "s/keycloak-\(.*\).tar.gz/\1/")
           echo "keycloak_version=${version,,}" >> $GITHUB_ENV
           cp $GITHUB_WORKSPACE/quarkus/dist/target/keycloak-*.tar.gz $GITHUB_WORKSPACE/quarkus/container
           echo "keycloak_tar=`basename $(ls quarkus/container/keycloak-*.tar.gz)`" >> $GITHUB_ENV
           if [ "${{ github.event.repository.default_branch }}" != "${{ github.ref_name }}" ]; then
-            image_tag=${version,,}-${GITHUB_REF_NAME//\//_}${{inputs.image-tag-postfix}}
+            image_tag=${version}-${GITHUB_REF_NAME//\//_}${INPUTS_IMAGE_TAG_POSTFIX:+-${INPUTS_IMAGE_TAG_POSTFIX}}
           else
-            image_tag=${version,,}${{inputs.image-tag-postfix}}
+            image_tag=${version}${INPUTS_IMAGE_TAG_POSTFIX:+-${INPUTS_IMAGE_TAG_POSTFIX}}
           fi
           echo "image_tag=${image_tag,,}" >> $GITHUB_ENV
         
