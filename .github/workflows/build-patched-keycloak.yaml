@@ -1,5 +1,5 @@
 ---
-name: Build .tgz + image for Keycloak
+name: Build image for Keycloak
 run-name: "Image for patched Keycloak ${{ inputs.keycloak-tag }}. Patched release tag ${{ inputs.tag }}"
 
 on:
@@ -9,15 +9,10 @@ on:
         description: "Keycloak version tag"
         required: true
         default: "26.3.2"
-      tag:
-        description: "Tag to create"
-        required: true
-        default: "keycloak-26.3.2-patched"
-      forceCreate:
-        type: boolean
-        description: "Force tag creation"
+      image-tag-postfix:
+        description: "Postfix to add to image tag"
         required: false
-        default: true
+        default: ""
 
 permissions: {}
 
@@ -25,25 +20,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
-      - name: Create a New Tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@d11baa8a4b42d1a931808c0766ee23eb344c47dd # v2.2.0
-        with:
-          ref: ${{ github.ref_name }}
-          tag-name: ${{ inputs.tag }}
-          force-create: ${{ inputs.forceCreate }}
-          switch-to-tag: true
-          create-release: true
-          skip-checkout: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Clean up
-        run: |
-          rm -rf ./*
-
       - name: Checkout Keycloak source code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -54,7 +33,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: ./keycloak-patches
-          ref: ${{ inputs.tag }}
 
       - name: Apply patches
         run: |
@@ -77,13 +55,11 @@ jobs:
           upload-dist: true
           workspace: keycloak-src
 
-      - name: "Upload assets"
-        uses: netcracker/qubership-workflow-hub/actions/assets-action@d11baa8a4b42d1a931808c0766ee23eb344c47dd # v2.2.0
+      - name: "Upload artifacts"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          tag: ${{ inputs.tag }}
-          item-path: ./quarkus/dist/target/keycloak-*.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: keycloak
+          path: ./quarkus/dist/target/keycloak-*.tar.gz
 
       - name: Build Docker image preparation
         run: |
@@ -91,7 +67,13 @@ jobs:
           echo "keycloak_version=${version,,}" >> $GITHUB_ENV
           cp $GITHUB_WORKSPACE/quarkus/dist/target/keycloak-*.tar.gz $GITHUB_WORKSPACE/quarkus/container
           echo "keycloak_tar=`basename $(ls quarkus/container/keycloak-*.tar.gz)`" >> $GITHUB_ENV
-
+          if [ "${{ github.event.repository.default_branch }}" != "${{ github.ref_name }}" ]; then
+            image_tag=${version,,}-${GITHUB_REF_NAME//\//_}${{inputs.image-tag-postfix}}
+          else
+            image_tag=${version,,}${{inputs.image-tag-postfix}}
+          fi
+          echo "image_tag=${image_tag,,}" >> $GITHUB_ENV
+        
       - name: Login to Docker Hub
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
@@ -109,7 +91,7 @@ jobs:
         run: echo "repo_owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Debug tag
-        run: echo "ghcr.io/${{ env.repo_owner_lc }}/${{ github.event.repository.name }}:${{ env.keycloak_version }}"
+        run: echo "ghcr.io/${{ env.repo_owner_lc }}/${{ github.event.repository.name }}:${{ env.image_tag }}"
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
@@ -121,6 +103,6 @@ jobs:
             KEYCLOAK_DIST=${{ env.keycloak_tar }}
           push: "true"
           tags: |
-            ghcr.io/${{ env.repo_owner_lc }}/${{ github.event.repository.name }}:${{ env.keycloak_version }}
+            ghcr.io/${{ env.repo_owner_lc }}/${{ github.event.repository.name }}:${{ env.image_tag }}
           platforms: linux/amd64
           github-token: ${{ secrets.GITHUB_TOKEN }}
