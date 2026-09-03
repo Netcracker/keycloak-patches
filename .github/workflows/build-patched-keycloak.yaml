@@ -87,7 +87,7 @@ jobs:
           upload-dist: true
           workspace: keycloak-src
         env:
-          MAVEN_ARGS: "-DskipProtoLock=true -B -nsu -Daether.connector.http.connectionMaxTtl=25"
+          MAVEN_ARGS: "-DskipProtoLock=true -B -nsu -Daether.connector.http.connectionMaxTtl=25 -ntp"
 
       - name: "Upload assets"
         if: inputs.create-release && github.ref_name == github.event.repository.default_branch
