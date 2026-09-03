@@ -34,11 +34,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - name: Create a New Tag
-        if: inputs.create-release == 'true' && github.ref_name == github.event.repository.default_branch
+        if: inputs.create-release && github.ref_name == github.event.repository.default_branch
         uses: netcracker/qubership-workflow-hub/actions/tag-action@d11baa8a4b42d1a931808c0766ee23eb344c47dd # v2.2.0
         with:
           ref: ${{ github.ref_name }}
@@ -51,7 +51,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean up
-        if: inputs.create-release == 'true'
+        if: inputs.create-release
         run: |
           rm -rf ./*
 
@@ -94,7 +94,7 @@ jobs:
           path: ./quarkus/dist/target/keycloak-*.tar.gz
 
       - name: "Upload assets"
-        if: inputs.create-release == 'true' && github.ref_name == github.event.repository.default_branch
+        if: inputs.create-release && github.ref_name == github.event.repository.default_branch
         uses: netcracker/qubership-workflow-hub/actions/assets-action@d11baa8a4b42d1a931808c0766ee23eb344c47dd # v2.2.0
         with:
           tag: ${{ inputs.tag }}
