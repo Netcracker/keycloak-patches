@@ -22,6 +22,11 @@ on:
         description: "GitHub tag name to create if `create-release == true`"
         default: "26.3.2-patched"
         required: false
+      force-create:
+        type: boolean
+        description: "Force tag creation"
+        required: false
+        default: true
 
 permissions: {}
 
@@ -38,7 +43,7 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           tag-name: ${{ inputs.tag }}
-          force-create: ${{ inputs.forceCreate }}
+          force-create: ${{ inputs.force-create }}
           switch-to-tag: true
           create-release: true
           skip-checkout: false
