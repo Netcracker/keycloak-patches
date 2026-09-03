@@ -1,6 +1,6 @@
 ---
 name: Build image for Keycloak
-run-name: "Image for patched Keycloak ${{ inputs.keycloak-tag }}. Patched release tag ${{ inputs.tag }}"
+run-name: "Image for patched Keycloak ${{ inputs.keycloak-tag }}."
 
 on:
   workflow_dispatch:
@@ -13,6 +13,15 @@ on:
         description: "Postfix to add to image tag"
         required: false
         default: ""
+      create-release:
+        description: "Create or not GitHub release tag. Only applicable to default branch"
+        default: false
+        required: false
+        type: boolean
+      tag:
+        description: "GitHub tag name to create if `create-release == true`"
+        default: "26.3.2-patched"
+        required: false
 
 permissions: {}
 
@@ -23,6 +32,24 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Create a New Tag
+        if: inputs.create-release == 'true' && github.ref_name == github.event.repository.default_branch
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@d11baa8a4b42d1a931808c0766ee23eb344c47dd # v2.2.0
+        with:
+          ref: ${{ github.ref_name }}
+          tag-name: ${{ inputs.tag }}
+          force-create: ${{ inputs.forceCreate }}
+          switch-to-tag: true
+          create-release: true
+          skip-checkout: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up
+        if: inputs.create-release == 'true'
+        run: |
+          rm -rf ./*
+
       - name: Checkout Keycloak source code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -60,6 +87,15 @@ jobs:
         with:
           name: keycloak
           path: ./quarkus/dist/target/keycloak-*.tar.gz
+
+      - name: "Upload assets"
+        if: inputs.create-release == 'true' && github.ref_name == github.event.repository.default_branch
+        uses: netcracker/qubership-workflow-hub/actions/assets-action@d11baa8a4b42d1a931808c0766ee23eb344c47dd # v2.2.0
+        with:
+          tag: ${{ inputs.tag }}
+          item-path: ./quarkus/dist/target/keycloak-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker image preparation
         run: |
