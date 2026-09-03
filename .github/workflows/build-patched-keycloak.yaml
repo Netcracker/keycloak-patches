@@ -79,13 +79,17 @@ jobs:
         uses: stCarolas/setup-maven@12eb41b233df95d49b0c11fc1b5bc8312e5d4ce0 # v5.1
         with:
           maven-version: 3.9.8
+      
+      - name: 
 
       - name: build
         uses: ./.github/actions/build-keycloak
         with:
           upload-m2-repo: true
           upload-dist: true
-          workspace: keycloak-src
+          #workspace: keycloak-src
+        env:
+          MAVEN_ARGS: "-DskipProtoLock=true"
 
       - name: "Upload artifacts"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
