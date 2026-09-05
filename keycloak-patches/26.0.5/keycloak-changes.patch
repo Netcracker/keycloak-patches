@@ -1,0 +1,151 @@
+diff --git a/services/src/main/java/org/keycloak/authentication/DefaultAuthenticationFlow.java b/services/src/main/java/org/keycloak/authentication/DefaultAuthenticationFlow.java
+index dd53d3d8d5..84e4cb83a7 100755
+--- a/services/src/main/java/org/keycloak/authentication/DefaultAuthenticationFlow.java
++++ b/services/src/main/java/org/keycloak/authentication/DefaultAuthenticationFlow.java
+@@ -93,7 +93,7 @@ public class DefaultAuthenticationFlow implements AuthenticationFlow {
+             if (inputData.containsKey("tryAnotherWay")) {
+                 logger.trace("User clicked on link 'Try Another Way'");
+ 
+-                processor.getAuthenticationSession().setAuthNote(AuthenticationProcessor.AUTHENTICATION_SELECTOR_SCREEN_DISPLAYED, "true");
++                processor.getAuthenticationSession().setAuthNote(AuthenticationProcessor.AUTHENTICATION_SELECTOR_SCREEN_DISPLAYED, model.getId());
+                 return createSelectAuthenticatorsScreen(model);
+             }
+ 
+@@ -237,15 +237,17 @@ public class DefaultAuthenticationFlow implements AuthenticationFlow {
+     @Override
+     public Response processFlow() {
+         logger.debugf("processFlow: %s", flow.getAlias());
+-
+-        if (Boolean.parseBoolean(processor.getAuthenticationSession().getAuthNote(AuthenticationProcessor.AUTHENTICATION_SELECTOR_SCREEN_DISPLAYED))) {
+-            logger.tracef("Refreshed page on authentication selector screen");
++        String selector = processor.getAuthenticationSession().getAuthNote(AuthenticationProcessor.AUTHENTICATION_SELECTOR_SCREEN_DISPLAYED);
++        if (selector != null) {
+             String lastExecutionId = processor.getAuthenticationSession().getAuthNote(AuthenticationProcessor.CURRENT_AUTHENTICATION_EXECUTION);
+-            if (lastExecutionId != null) {
++            if (selector.equalsIgnoreCase(lastExecutionId)) {
++                logger.tracef("Refreshed page on authentication selector screen");
+                 AuthenticationExecutionModel executionModel = processor.getRealm().getAuthenticationExecutionById(lastExecutionId);
+                 if (executionModel != null) {
+                     return createSelectAuthenticatorsScreen(executionModel);
+                 }
++            } else {
++                processor.getAuthenticationSession().removeAuthNote(AuthenticationProcessor.AUTHENTICATION_SELECTOR_SCREEN_DISPLAYED);
+             }
+         }
+ 
+diff --git a/services/src/main/java/org/keycloak/authentication/authenticators/resetcred/ResetCredentialEmail.java b/services/src/main/java/org/keycloak/authentication/authenticators/resetcred/ResetCredentialEmail.java
+index 0e14e3eeed..a39437f1aa 100755
+--- a/services/src/main/java/org/keycloak/authentication/authenticators/resetcred/ResetCredentialEmail.java
++++ b/services/src/main/java/org/keycloak/authentication/authenticators/resetcred/ResetCredentialEmail.java
+@@ -128,8 +128,15 @@ public class ResetCredentialEmail implements Authenticator, AuthenticatorFactory
+ 
+     @Override
+     public void action(AuthenticationFlowContext context) {
+-        context.getUser().setEmailVerified(true);
+-        context.success();
++        UserModel user = context.getUser();
++        String actionTokenUserId = context.getAuthenticationSession().getAuthNote(DefaultActionTokenKey.ACTION_TOKEN_USER_ID);
++        if (user != null && user.getId().equals(actionTokenUserId)) {
++            context.getUser().setEmailVerified(true);
++            context.success();
++        } else {
++            // not called via action token or any other weird situation
++            context.failure(AuthenticationFlowError.INVALID_USER);
++        }
+     }
+ 
+     @Override
+diff --git a/testsuite/integration-arquillian/tests/base/src/main/java/org/keycloak/testsuite/pages/LoginPasswordResetPage.java b/testsuite/integration-arquillian/tests/base/src/main/java/org/keycloak/testsuite/pages/LoginPasswordResetPage.java
+index 16b7904f59..ff33fef519 100644
+--- a/testsuite/integration-arquillian/tests/base/src/main/java/org/keycloak/testsuite/pages/LoginPasswordResetPage.java
++++ b/testsuite/integration-arquillian/tests/base/src/main/java/org/keycloak/testsuite/pages/LoginPasswordResetPage.java
+@@ -47,6 +47,9 @@ public class LoginPasswordResetPage extends LanguageComboboxAwarePage {
+     @FindBy(id = "kc-info-wrapper")
+     private WebElement infoWrapper;
+ 
++    @FindBy(id = "kc-reset-password-form")
++    private WebElement formResetPassword;
++
+     public void changePassword() {
+         submitButton.click();
+     }
+@@ -101,4 +104,8 @@ public class LoginPasswordResetPage extends LanguageComboboxAwarePage {
+             return null;
+         }
+     }
++
++    public String getFormUrl() {
++        return formResetPassword.getAttribute("action");
++    }
+ }
+diff --git a/testsuite/integration-arquillian/tests/base/src/test/java/org/keycloak/testsuite/forms/ResetPasswordTest.java b/testsuite/integration-arquillian/tests/base/src/test/java/org/keycloak/testsuite/forms/ResetPasswordTest.java
+index 5f72235f42..37899780e9 100644
+--- a/testsuite/integration-arquillian/tests/base/src/test/java/org/keycloak/testsuite/forms/ResetPasswordTest.java
++++ b/testsuite/integration-arquillian/tests/base/src/test/java/org/keycloak/testsuite/forms/ResetPasswordTest.java
+@@ -50,6 +50,7 @@ import org.keycloak.testsuite.pages.LoginPage;
+ import org.keycloak.testsuite.pages.LoginPasswordResetPage;
+ import org.keycloak.testsuite.pages.LoginPasswordUpdatePage;
+ import org.keycloak.testsuite.pages.LogoutConfirmPage;
++import org.keycloak.testsuite.pages.SelectAuthenticatorPage;
+ import org.keycloak.testsuite.pages.VerifyEmailPage;
+ import org.keycloak.testsuite.updaters.ClientAttributeUpdater;
+ import org.keycloak.testsuite.util.BrowserTabUtil;
+@@ -78,6 +79,7 @@ import java.util.concurrent.atomic.AtomicInteger;
+ 
+ import org.junit.*;
+ import org.openqa.selenium.By;
++import org.openqa.selenium.JavascriptExecutor;
+ import org.openqa.selenium.WebDriver;
+ import org.openqa.selenium.WebElement;
+ import org.openqa.selenium.firefox.FirefoxDriver;
+@@ -98,7 +100,8 @@ public class ResetPasswordTest extends AbstractTestRealmKeycloakTest {
+ 
+     @Rule
+     public InfinispanTestTimeServiceRule ispnTestTimeService = new InfinispanTestTimeServiceRule(this);
+-
++    @Page
++    SelectAuthenticatorPage selectAuthenticatorPage;
+     @Drone
+     @SecondBrowser
+     protected WebDriver driver2;
+@@ -1449,4 +1452,40 @@ public class ResetPasswordTest extends AbstractTestRealmKeycloakTest {
+             appPage.assertCurrent();
+         }
+     }
++
++    private void submitForm(String action, String name, String value) {
++        ((JavascriptExecutor) driver).executeScript(
++                "var form = document.createElement('form');" +
++                        "document.body.appendChild(form);" +
++                        "form.method = 'POST';" +
++                        "form.action ='"+ action + "';" +
++                        "var element1 = document.createElement('input');" +
++                        "element1.name='" + name +"';" +
++                        "element1.value='" + value + "';" +
++                        "form.appendChild(element1);" +
++                        "form.submit();");
++    }
++
++    @Test
++    public void resetPasswordTryAnotherWay() throws Exception {
++        oauth.openLoginForm();
++        loginPage.resetPassword();
++        resetPasswordPage.assertCurrent();
++        String resetPasswordUrl = driver.getCurrentUrl();
++
++        // force a tryAnotherWay to set AUTHENTICATION_SELECTOR_SCREEN_DISPLAYED
++        submitForm(resetPasswordPage.getFormUrl(), "tryAnotherWay", "on");
++        selectAuthenticatorPage.assertCurrent();
++
++        // now execute the email action to send the email
++        WebElement form = driver.findElement(By.id("kc-select-credential-form"));
++        submitForm(form.getDomAttribute("action"), "username", "login-test");
++        loginPage.assertCurrent();
++        assertEquals("You should receive an email shortly with further instructions.", loginPage.getSuccessMessage());
++
++        // back to reset credential and check we are still waiting the email
++        driver.navigate().to(resetPasswordUrl);
++        loginPage.assertCurrent();
++        assertEquals("You should receive an email shortly with further instructions.", loginPage.getSuccessMessage());
++    }
+ }
